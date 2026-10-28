@@ -341,6 +341,14 @@ impl<W: Wallets> UpdateSubscriber<W> {
                     tip: _,
                     recent_history: _,
                 }) => {
+                    // Apply blocks in ASCENDING height order so a receive is always
+                    // processed before the spend that consumes it. queued_blocks is
+                    // filled in ascending order; reverse it so the .last()/.pop() loop
+                    // below drains it oldest-first. Without this, a spend contained in
+                    // a block with no wallet output is seen before its corresponding
+                    // receive and dropped by apply_block_relevant, leaving the spent
+                    // UTXO wrongly marked unspent (phantom UTXO) during recovery.
+                    self.queued_blocks.reverse();
                     while let Some(&hash) = self.queued_blocks.last() {
                         let block = match self.requester.get_block(hash).await {
                             Ok(block) => block,
